@@ -1,0 +1,72 @@
+# PPG2ECG 默认配置 (配置驱动工作流)
+# 用法: python -m src.train --config configs/default.yaml
+# 一个实验 = 一个配置文件; 输出隔离到 runs/<experiment.name>/
+# 刷点流程: 复制本文件 -> 改 experiment.name 和要动的模块 -> 训练
+
+# 实验标识 (决定输出目录 runs/<name>/)
+experiment:
+  name: baseline
+
+# ------------------------------------------------------------------
+# 数据: 数据集选择 (注册表分发) + 预处理组合 + DataLoader
+# ------------------------------------------------------------------
+data:
+  # 数据集名称 (src/data/dataset.py 注册表)
+  dataset: senssmarttech
+  # 预处理组合目录: {subjectwise|recordwise}_{per-lead|global}
+  #   subjectwise = 跨被试 (主结果); recordwise = 记录级 sample-wise (对照上界)
+  root: data/processed/SensSmartTech/subjectwise_per-lead
+  # PPG 通道选择: null = 使用全部 4 路 PPG (baseline)
+  ppg_channel: null
+  batch_size: 32
+  num_workers: 4
+
+# ------------------------------------------------------------------
+# 模型: 模块选择 (注册表构建, name 字段必填, 其余为构造超参)
+# ------------------------------------------------------------------
+model:
+  latent_dim: 128            # 潜在表示通道数 (全局共享)
+
+  encoder:
+    name: baseline_encoder   # 可选: 见 src/models/registry.py
+    base_channels: 32
+    dropout: 0.1
+
+  decoder:
+    name: baseline_decoder
+    base_channels: 32
+    dropout: 0.0
+
+  # 扩散模块: null = 不启用
+  diffusion: null
+  # diffusion:
+  #   name: latent_diffusion
+  #   num_timesteps: 1000
+  #   beta_schedule: linear
+
+  # 损失模块选择: 权重为 0 或缺省的项不参与计算
+  loss:
+    weights:
+      mse: 1.0
+      dtw: 0.0
+      freq: 0.0
+      perceptual: 0.0
+
+# ------------------------------------------------------------------
+# 训练
+# ------------------------------------------------------------------
+training:
+  epochs: 100
+  lr: 0.0001
+  weight_decay: 0.00001
+  min_lr: 0.000001
+  max_grad_norm: 1.0
+  diff_weight: 0.1          # 扩散辅助损失权重 (仅 diffusion 启用时)
+  save_every: 10            # 每 N 个 epoch 保存检查点
+
+# ------------------------------------------------------------------
+# 输出与复现
+# ------------------------------------------------------------------
+seed: 42
+device: auto                # auto | cuda | cpu
+# output_dir 由 train.py 自动生成为 runs/<experiment.name>, 无需手填

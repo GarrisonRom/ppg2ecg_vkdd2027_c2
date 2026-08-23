@@ -1,0 +1,41 @@
+# 实验示例 2: sample-wise 划分对照 (记录级, 被试跨 split 泄漏)
+# 用途: 论文中的对照上界 —— 与 subjectwise 主结果对比量化跨被试泛化差距
+# 用法: python -m src.train --config configs/exp_recordwise.yaml
+
+experiment:
+  name: exp_recordwise
+
+data:
+  dataset: senssmarttech
+  root: data/processed/SensSmartTech/recordwise_per-lead
+  ppg_channel: carotid_880nm
+  batch_size: 32
+  num_workers: 4
+
+model:
+  latent_dim: 128
+  encoder:
+    name: ppg_encoder
+    base_channels: 32
+  decoder:
+    name: ecg_decoder
+    base_channels: 32
+  diffusion: null
+  loss:
+    weights:
+      mse: 1.0
+      dtw: 0.5
+      freq: 0.3
+      perceptual: 0.1
+
+training:
+  epochs: 100
+  lr: 0.0001
+  weight_decay: 0.00001
+  min_lr: 0.000001
+  max_grad_norm: 1.0
+  diff_weight: 0.1
+  save_every: 10
+
+seed: 42
+device: auto

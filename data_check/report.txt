@@ -1,0 +1,49 @@
+============================================================
+SensSmartTech 数据可用性检验报告
+============================================================
+
+[1] 文件完整性
+    CSV 总文件数: 1352
+    acc: 338 个文件
+    ecg: 338 个文件
+    pcg: 338 个文件
+    ppg: 338 个文件
+    受试者数: 32
+    Demographics 记录数: 401 (活动前后 B/A)
+
+[2] 示例记录 10_18-12-33
+    PPG 列: ['t', 'carotid_880nm', 'carotid_660nm', 'brachial_880nm', 'brachial_660nm']
+    ECG 列: ['t', 'lead_I', 'lead_II', 'v3', 'v4']
+    PPG 采样率: 100.0 Hz, 时长 30.0 s, 样本数 3035
+    ECG 采样率: 500.0 Hz, 时长 30.0 s, 样本数 15018
+    PPG NaN 总数: 0
+         carotid_880nm: mean=         0.0  std=      95.5
+         carotid_660nm: mean=         0.0  std=      30.0
+        brachial_880nm: mean=        -0.0  std=      50.0
+        brachial_660nm: mean=        -0.0  std=      21.1
+    ECG NaN 总数: 0
+                lead_I: mean=   -105765.4  std=    8246.3
+               lead_II: mean=   -127585.9  std=    8835.8
+                    v3: mean=     60222.3  std=   15659.1
+                    v4: mean=     69255.9  std=    9478.5
+
+[3] 预处理元数据一致性
+    metadata 窗口总数: 1428 (覆盖 22 名受试者)
+    记录 10_18-12-33 的窗口数: 6 (按窗长8.0s/步长4.0s估计约 6)
+    划分 train/val/test = 22/5/5 人
+    通道配置: PPG ['carotid_880nm', 'carotid_660nm', 'brachial_880nm', 'brachial_660nm']
+             ECG ['I', 'II', 'V3', 'V4']
+    metadata 受试者与 train 划分一致: True
+
+[4] 生理合理性
+    心率范围 58.4-172.9 bpm, 40-180 bpm 内占比 100.0%
+
+[4b] ECG 形态检验 (lead II 去直流后 R 波检测)
+    检出 R 波数: 50, ECG 估计心率: 99.5 bpm
+    Demographics 参考心率: 99.3 bpm, 偏差 0.2 bpm
+
+[4c] 多记录抽检 (20/20 条有效)
+    ECG 心率与参考值偏差: 中位数 0.1 bpm, 最大 8.4 bpm
+    偏差 <=5 bpm 的记录占比: 95%
+
+[5] 已保存示例信号图: sample_signals.png

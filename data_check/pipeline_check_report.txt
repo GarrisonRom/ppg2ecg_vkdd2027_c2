@@ -1,0 +1,34 @@
+============================================================
+v2 预处理管线产物验证报告
+============================================================
+
+[1] 划分复现性 (seed=42 vs 旧 split_subjects.json)
+  [skip] 旧 split_subjects.json 不存在
+  windows_index: 2028 窗, 32 被试, 338 记录
+
+[2] NPZ 缓存形状与数值
+  [PASS] subjectwise_per-lead: 共 2028 窗, 形状 [N,4,2000] 一致
+  [PASS] subjectwise_per-lead: 全部有限值 (无 NaN/Inf)
+  [PASS] subjectwise_global: 共 2028 窗, 形状 [N,4,2000] 一致
+  [PASS] subjectwise_global: 全部有限值 (无 NaN/Inf)
+  [PASS] recordwise_per-lead: 共 2028 窗, 形状 [N,4,2000] 一致
+  [PASS] recordwise_per-lead: 全部有限值 (无 NaN/Inf)
+  [PASS] recordwise_global: 共 2028 窗, 形状 [N,4,2000] 一致
+  [PASS] recordwise_global: 全部有限值 (无 NaN/Inf)
+
+[3] ECG 归一化语义
+  [PASS] subjectwise_per-lead: 各导联 std≈1 ([1.0, 1.0, 1.0, 1.0])
+  [PASS] subjectwise_global: 导联幅度比保留 (std 比值 [1.0, 1.5700000524520874, 2.0199999809265137, 2.109999895095825])
+  [PASS] PPG 逐通道归一化生效 (各通道 std [1.090000033378601, 1.1799999475479126, 1.0700000524520874, 1.1399999856948853])
+
+[4] 防泄漏检查
+  [PASS] subjectwise_per-lead: train/val/test 无 被试 交集
+  [PASS] recordwise_per-lead: train/val/test 无 记录 交集
+  [info] recordwise 中 test 被试出现在 train 的有 25/25 人 (sample-wise 预期行为)
+
+[5] 窗口来源完整性
+  [PASS] 各 split metadata 窗口总数 = windows_index (2028 = 2028)
+
+============================================================
+总结论: 全部通过
+============================================================

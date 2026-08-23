@@ -1,0 +1,91 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb_checkpoints
+
+# PyTorch
+*.pth
+*.pt
+*.ckpt
+
+# 大数据文件 (训练数据、模型权重)
+data/raw/
+data/interim/
+data/processed/
+data/external/
+!data/README.md
+/models/
+checkpoints/
+results/
+*.h5
+*.hdf5
+*.mat
+*.dat
+*.hea
+*.atr
+*.edf
+*.wav
+
+# 凭证和敏感信息
+*.credentials
+*.env
+.env
+scripts/.physionet_credentials
+config_local.yaml
+secrets.yaml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 实验追踪
+wandb/
+lightning_logs/
+runs/
+mlruns/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+.trae-html-share-packages/
+.uploads/
+ppg2ecg-survey/
+
+# v0.1 reproducible SensSmartTech baseline archive
+# Keep only the explicitly named checkpoint and evaluation artifacts; raw data,
+# all other runs, and unrelated experiment weights remain ignored.
+!checkpoints/
+!checkpoints/SensSmartTech_subjectwise-per-lead_baseline_seed42_20ep/
+!checkpoints/SensSmartTech_subjectwise-per-lead_baseline_seed42_20ep/*.pth
+!checkpoints/SensSmartTech_subjectwise-per-lead_baseline_seed42_20ep/*.json
+!checkpoints/SensSmartTech_subjectwise-per-lead_baseline_seed42_20ep/*.yaml
+!checkpoints/SensSmartTech_subjectwise-per-lead_baseline_seed42_20ep/*.log

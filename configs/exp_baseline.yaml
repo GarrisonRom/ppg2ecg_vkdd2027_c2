@@ -1,0 +1,54 @@
+# SensSmartTech 干净 baseline
+#
+# 目标: 4 路 PPG -> 4 导联 ECG 的确定性时序重建。
+# 该配置不启用 VAE / GRL / GAN / Flow / IRM，也不把 A/B 运动标签送入模型。
+# 后续每个新机制建议复制本文件，单独修改一个模块并保留实验名。
+
+experiment:
+  name: senssmarttech_baseline
+
+data:
+  dataset: senssmarttech
+  # 主实验: subject-wise 22/5/5
+  root: data/processed/SensSmartTech/subjectwise_per-lead
+  # null = 使用全部 4 路 PPG；A/B 只在 metadata/评估中保留
+  ppg_channel: null
+  batch_size: 16
+  num_workers: 4
+
+model:
+  latent_dim: 128
+
+  # 时序 Res-Encoder，自动接收数据集的 4 路 PPG
+  encoder:
+    name: baseline_encoder
+    base_channels: 32
+    dropout: 0.1
+
+  # 插值上采样 + 残差 Decoder，末端不使用 Dropout
+  decoder:
+    name: baseline_decoder
+    base_channels: 32
+    dropout: 0.0
+
+  diffusion: null
+
+  # 第一版只使用逐点 MSE；其余项保留为后续消融开关
+  loss:
+    weights:
+      mse: 1.0
+      dtw: 0.0
+      freq: 0.0
+      perceptual: 0.0
+
+training:
+  epochs: 50
+  lr: 0.0001
+  weight_decay: 0.00001
+  min_lr: 0.000001
+  max_grad_norm: 1.0
+  diff_weight: 0.0
+  save_every: 10
+
+seed: 42
+device: auto

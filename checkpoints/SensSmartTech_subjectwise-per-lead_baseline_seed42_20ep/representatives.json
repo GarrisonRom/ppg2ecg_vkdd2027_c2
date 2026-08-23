@@ -1,0 +1,59 @@
+{
+  "run": "E:\\06毕业方向\\ppg2ecg\\runs\\senssmarttech_baseline_20ep",
+  "checkpoint": "E:\\06毕业方向\\ppg2ecg\\runs\\senssmarttech_baseline_20ep\\best.pth",
+  "dataset": "senssmarttech",
+  "seed": 42,
+  "data_root": "E:\\06毕业方向\\ppg2ecg\\data\\processed\\SensSmartTech\\subjectwise_per-lead",
+  "device": "cuda",
+  "fs_hz": 250,
+  "activity_labels": {
+    "A": "A: after activity / exercise",
+    "B": "B: before activity / rest"
+  },
+  "figures": {
+    "train": {
+      "B": {
+        "index": 100,
+        "activity": "B",
+        "activity_label": "B: before activity / rest",
+        "subject_id": "6",
+        "record_id": "6_10-44-34",
+        "start_sec": "16.0",
+        "window_mse": 0.5017628073692322,
+        "group_median_mse": 0.501861035823822
+      },
+      "A": {
+        "index": 72,
+        "activity": "A",
+        "activity_label": "A: after activity / exercise",
+        "subject_id": "4",
+        "record_id": "4_11-27-30",
+        "start_sec": "0.0",
+        "window_mse": 0.7383399605751038,
+        "group_median_mse": 0.7379652261734009
+      }
+    },
+    "test": {
+      "B": {
+        "index": 149,
+        "activity": "B",
+        "activity_label": "B: before activity / rest",
+        "subject_id": "9",
+        "record_id": "9_13-52-23",
+        "start_sec": "20.0",
+        "window_mse": 0.5334208011627197,
+        "group_median_mse": 0.5296202898025513
+      },
+      "A": {
+        "index": 140,
+        "activity": "A",
+        "activity_label": "A: after activity / exercise",
+        "subject_id": "5",
+        "record_id": "5_09-14-32",
+        "start_sec": "8.0",
+        "window_mse": 0.7592160105705261,
+        "group_median_mse": 0.7581329345703125
+      }
+    }
+  }
+}

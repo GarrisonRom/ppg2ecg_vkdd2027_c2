@@ -1,0 +1,41 @@
+============================================================
+数据层适配冒烟测试 (npz 格式, 按数据集分发)
+============================================================
+
+[1] Dataset 构造与属性自描述 (通道/采样率从 npz 读取)
+  [PASS] subjectwise_per-lead: 属性自描述正确 — fs=250, T=2000, ppg=4ch, ecg=4导联
+  [PASS] subjectwise_global: 属性自描述正确 — fs=250, T=2000, ppg=4ch, ecg=4导联
+  [PASS] recordwise_per-lead: 属性自描述正确 — fs=250, T=2000, ppg=4ch, ecg=4导联
+  [PASS] recordwise_global: 属性自描述正确 — fs=250, T=2000, ppg=4ch, ecg=4导联
+
+[2] __getitem__ 与 DataLoader 批次形状
+  [PASS] 样本键: ppg/ecg/subject_id
+  [PASS] ppg 形状 [4, 2000]
+  [PASS] ecg 形状 [4, 2000]
+  [PASS] 样本类型 float32
+  [PASS] 批次 ppg [16,4,2000]
+  [PASS] 批次 ecg [16,4,2000]
+  [PASS] 批次 subject_id [16]
+
+[3] 元数据对齐 (subject_id 与 metadata.csv 一致)
+  [PASS] 数据集 subject 集与 metadata 一致 — 5 个被试
+  [PASS] 逐样本 subject_id 顺序对齐
+
+[4] ppg_channel 单通道选择 (兼容现有单通道 PPGEncoder)
+  [PASS] 选择后 ppg 形状 [1, 2000]
+  [PASS] 选择后通道名更新
+  [PASS] 选择后 ecg 不受影响
+  [PASS] 非法通道名报错
+  [PASS] 单通道数值与全通道版本对应通道一致
+
+[5] create_dataloaders 全链路 (按 DEFAULT_CONFIG)
+  [PASS] 返回 train/val/test 三个 loader — {'train': 1428, 'val': 282, 'test': 318}
+  [PASS] train.py 派生参数正确: T=2000, ecg_leads=4
+  [PASS] train 批次可正常取 batch (ppg [B,1,2000])
+
+[6] 数据值域确认 (已在预处理中归一化, 加载层无额外变换)
+  [PASS] PPG 值域符合 robust z-score + clip(±10) — max|ppg|=10.00
+
+============================================================
+总结论: 全部通过
+============================================================

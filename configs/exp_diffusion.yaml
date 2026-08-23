@@ -1,0 +1,42 @@
+# 实验示例 1: 启用潜空间扩散 + 精简损失 (纯 MSE + Freq)
+# 用法: python -m src.train --config configs/exp_diffusion.yaml
+# 与 baseline 的差异会同时反映在 runs/exp_diffusion/config.yaml 快照中
+
+experiment:
+  name: exp_diffusion
+
+data:
+  dataset: senssmarttech
+  root: data/processed/SensSmartTech/subjectwise_per-lead
+  ppg_channel: carotid_880nm
+  batch_size: 32
+  num_workers: 4
+
+model:
+  latent_dim: 128
+  encoder:
+    name: ppg_encoder
+    base_channels: 32
+  decoder:
+    name: ecg_decoder
+    base_channels: 32
+  diffusion:
+    name: latent_diffusion
+    num_timesteps: 500        # 缩短扩散链, CPU 冒烟测试更快
+    beta_schedule: linear
+  loss:
+    weights:
+      mse: 1.0
+      freq: 0.3               # dtw/perceptual 关闭 (权重缺省即跳过)
+
+training:
+  epochs: 50
+  lr: 0.0001
+  weight_decay: 0.00001
+  min_lr: 0.000001
+  max_grad_norm: 1.0
+  diff_weight: 0.1
+  save_every: 10
+
+seed: 42
+device: auto

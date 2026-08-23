@@ -1,0 +1,36 @@
+data:
+  batch_size: 16
+  dataset: senssmarttech
+  num_workers: 4
+  ppg_channel: null
+  root: data/processed/SensSmartTech/subjectwise_per-lead
+device: auto
+experiment:
+  name: senssmarttech_baseline_20ep
+model:
+  decoder:
+    base_channels: 32
+    dropout: 0.0
+    name: baseline_decoder
+  diffusion: null
+  encoder:
+    base_channels: 32
+    dropout: 0.1
+    name: baseline_encoder
+  latent_dim: 128
+  loss:
+    weights:
+      dtw: 0.0
+      freq: 0.0
+      mse: 1.0
+      perceptual: 0.0
+output_dir: E:\06毕业方向\ppg2ecg\runs\senssmarttech_baseline_20ep
+seed: 42
+training:
+  diff_weight: 0.0
+  epochs: 20
+  lr: 0.0001
+  max_grad_norm: 1.0
+  min_lr: 1.0e-06
+  save_every: 10
+  weight_decay: 1.0e-05
