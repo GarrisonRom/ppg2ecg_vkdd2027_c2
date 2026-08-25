@@ -30,7 +30,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.data import create_dataset
-from src.models import build_decoder, build_encoder
+from src.models import build_decoder, build_encoder, build_latent_flow
 
 
 TRUE_COLOR = "#4C72B0"
@@ -69,6 +69,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=None,
                         help="output directory (default: <run>/figures)")
     parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument(
+        "--detail-seconds", type=float, default=2.5,
+        help="central duration for compact detail panels (default: 2.5 s)",
+    )
     return parser.parse_args()
 
 
@@ -111,14 +115,25 @@ def load_model(run_dir: Path, checkpoint_name: str):
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     encoder.load_state_dict(checkpoint["encoder"])
     decoder.load_state_dict(checkpoint["decoder"])
+    latent_flow = None
+    if model_cfg.get("latent_flow") is not None:
+        latent_flow = build_latent_flow(
+            model_cfg["latent_flow"],
+            latent_dim=model_cfg.get("latent_dim", 128),
+        ).to(device)
+        if "latent_flow" not in checkpoint:
+            raise KeyError(f"Checkpoint {checkpoint_name} does not contain latent_flow weights")
+        latent_flow.load_state_dict(checkpoint["latent_flow"])
     encoder.eval()
     decoder.eval()
-    return config, data_root, reference_ds, encoder, decoder, device, checkpoint_path
+    if latent_flow is not None:
+        latent_flow.eval()
+    return config, data_root, reference_ds, encoder, decoder, latent_flow, device, checkpoint_path
 
 
 @torch.no_grad()
-def predict_dataset(encoder, decoder, dataset, ppg_channel: str | None,
-                    device: torch.device, batch_size: int) -> np.ndarray:
+def predict_dataset(encoder, decoder, latent_flow, dataset, ppg_channel: str | None,
+                    device: torch.device, batch_size: int, flow_steps: int = 8) -> np.ndarray:
     ppg = dataset._x
     if ppg_channel:
         if ppg_channel not in dataset.ppg_channels:
@@ -129,7 +144,13 @@ def predict_dataset(encoder, decoder, dataset, ppg_channel: str | None,
     predictions = []
     for start in range(0, len(ppg), batch_size):
         batch = torch.from_numpy(ppg[start:start + batch_size]).float().to(device)
-        predictions.append(decoder(encoder(batch)).cpu().numpy())
+        encoded = encoder(batch)
+        if latent_flow is not None:
+            latent = encoded["mu"] if isinstance(encoded, dict) else encoded
+            latent = latent_flow.integrate(latent, steps=flow_steps)
+            predictions.append(decoder(latent).cpu().numpy())
+        else:
+            predictions.append(decoder(encoded).cpu().numpy())
     return np.concatenate(predictions, axis=0)
 
 
@@ -150,7 +171,9 @@ def _metadata_value(metadata, index: int, column: str, fallback: str = "") -> st
 
 
 def plot_split(split: str, pred: np.ndarray, target: np.ndarray,
-               dataset, fs: int, checkpoint_name: str, output_dir: Path) -> dict:
+               dataset, fs: int, checkpoint_name: str, output_dir: Path,
+               detail_seconds: float | None = None,
+               suffix: str = "") -> dict:
     metadata = dataset.metadata
     activities = (
         metadata["activity"].astype(str).to_numpy()
@@ -161,9 +184,24 @@ def plot_split(split: str, pred: np.ndarray, target: np.ndarray,
     time = np.arange(dataset.signal_length) / float(fs)
     selected: dict[str, dict] = {}
 
+    if detail_seconds is not None:
+        if detail_seconds <= 0:
+            raise ValueError("detail_seconds must be positive")
+        center = 0.5 * (time[0] + time[-1])
+        half = min(detail_seconds, time[-1] - time[0]) / 2.0
+        plot_mask = (time >= center - half) & (time <= center + half)
+        plot_time = time[plot_mask]
+        figure_size = (3.25 * len(lead_names), 4.2)
+        title_suffix = f" | central {plot_time[-1] - plot_time[0]:.1f}s detail"
+    else:
+        plot_mask = slice(None)
+        plot_time = time
+        figure_size = (4.4 * len(lead_names), 5.8)
+        title_suffix = ""
+
     fig, axes = plt.subplots(
         len(ACTIVITY_ORDER), len(lead_names),
-        figsize=(4.4 * len(lead_names), 5.8),
+        figsize=figure_size,
         sharex=True,
         squeeze=False,
     )
@@ -190,11 +228,11 @@ def plot_split(split: str, pred: np.ndarray, target: np.ndarray,
         for col, lead_name in enumerate(lead_names):
             axis = axes[row, col]
             true_line, = axis.plot(
-                time, target[index, col], color=TRUE_COLOR, linestyle="-",
+                plot_time, target[index, col][plot_mask], color=TRUE_COLOR, linestyle="-",
                 linewidth=1.25, label="True ECG",
             )
             pred_line, = axis.plot(
-                time, pred[index, col], color=PRED_COLOR, linestyle="--",
+                plot_time, pred[index, col][plot_mask], color=PRED_COLOR, linestyle="--",
                 linewidth=1.15, alpha=0.95, label="Generated ECG",
             )
             if handles is None:
@@ -212,7 +250,7 @@ def plot_split(split: str, pred: np.ndarray, target: np.ndarray,
             0.01, 0.98,
             f"subject={selected[state]['subject_id']}  "
             f"start={selected[state]['start_sec']} s  "
-            f"MSE={selected[state]['window_mse']:.3f}",
+                f"MSE={selected[state]['window_mse']:.3f}",
             transform=axes[row, 0].transAxes,
             va="top", ha="left", fontsize=8.5,
             bbox={"facecolor": "white", "alpha": 0.78, "edgecolor": "none", "pad": 2.5},
@@ -220,7 +258,7 @@ def plot_split(split: str, pred: np.ndarray, target: np.ndarray,
 
     fig.suptitle(
         f"SensSmartTech {split} ECG reconstruction | {checkpoint_name}\n"
-        "Representative windows selected by group-median MSE",
+        "Representative windows selected by group-median MSE" + title_suffix,
         y=1.02,
     )
     if handles is not None:
@@ -230,7 +268,7 @@ def plot_split(split: str, pred: np.ndarray, target: np.ndarray,
     fig.tight_layout(rect=(0, 0, 1, 0.91))
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    base_name = f"{split.lower()}_ecg_true_vs_generated"
+    base_name = f"{split.lower()}_ecg_true_vs_generated{suffix}"
     for extension, kwargs in (("png", {"dpi": 300}), ("pdf", {}), ("svg", {})):
         fig.savefig(output_dir / f"{base_name}.{extension}",
                     bbox_inches="tight", **kwargs)
@@ -244,7 +282,7 @@ def main() -> None:
     output_dir = args.output or run_dir / "figures"
     output_dir = output_dir if output_dir.is_absolute() else PROJECT_ROOT / output_dir
 
-    config, data_root, reference_ds, encoder, decoder, device, checkpoint_path = load_model(
+    config, data_root, reference_ds, encoder, decoder, latent_flow, device, checkpoint_path = load_model(
         run_dir, args.checkpoint,
     )
     ppg_channel = config["data"].get("ppg_channel")
@@ -262,13 +300,29 @@ def main() -> None:
 
     for split in ("train", "test"):
         dataset = create_dataset(config["data"]["dataset"], data_root, split=split)
-        pred = predict_dataset(encoder, decoder, dataset, ppg_channel, device, args.batch_size)
+        flow_steps = int((config.get("model", {}).get("cardio_align", {}) or {}).get(
+            "integration_steps", 8,
+        ))
+        pred = predict_dataset(
+            encoder, decoder, latent_flow, dataset, ppg_channel,
+            device, args.batch_size, flow_steps=flow_steps,
+        )
         selected = plot_split(
             split, pred, dataset._y, dataset, dataset.fs,
             args.checkpoint, output_dir,
         )
-        manifest["figures"][split] = selected
+        selected_detail = plot_split(
+            split, pred, dataset._y, dataset, dataset.fs,
+            args.checkpoint, output_dir,
+            detail_seconds=args.detail_seconds,
+            suffix="_detail",
+        )
+        manifest["figures"][split] = {
+            "full": selected,
+            "detail": selected_detail,
+        }
         print(f"[{split}] windows={len(dataset)} selected={selected}")
+        print(f"[{split}] detail_seconds={args.detail_seconds} selected={selected_detail}")
 
     with (output_dir / "representatives.json").open("w", encoding="utf-8") as handle:
         json.dump(manifest, handle, ensure_ascii=False, indent=2)

@@ -149,7 +149,16 @@ def read_csv_signal(
     col_names = [resolve_column(cols, w, aliases.get(w, [])) for w in wanted_channels]
     sig = df[col_names].to_numpy(dtype=np.float64)
 
-    fs = scale / np.median(np.diff(t))
+    # ``t`` is already expressed in seconds after applying ``scale``.  The
+    # previous expression multiplied by ``scale`` a second time and reported
+    # e.g. 500000 Hz for a 500 Hz ECG stream.  The returned rate is metadata
+    # only here, but keeping it correct prevents downstream rate-dependent
+    # diagnostics from silently using a wrong value.
+    dt = np.diff(t)
+    dt = dt[np.isfinite(dt) & (dt > 0)]
+    if dt.size == 0:
+        raise ValueError(f"No valid positive time deltas in {path}.")
+    fs = 1.0 / np.median(dt)
     return t, sig, fs
 
 

@@ -1,0 +1,47 @@
+flowchart LR
+    classDef input fill:#E8F3FF,stroke:#2B6CB0,stroke-width:1.5px,color:#102A43
+    classDef encoder fill:#E6FFFA,stroke:#168A76,stroke-width:1.5px,color:#123C35
+    classDef latent fill:#FFF5E6,stroke:#C77700,stroke-width:1.5px,color:#5C3500
+    classDef decoder fill:#F0EAFE,stroke:#7357B8,stroke-width:1.5px,color:#30205E
+    classDef fixed fill:#F2F4F7,stroke:#667085,stroke-width:1.5px,color:#344054
+    classDef aux fill:#FFF0F0,stroke:#C94B4B,stroke-width:1.5px,color:#641B1B
+    classDef loss fill:#FFF8DB,stroke:#B08900,stroke-width:1.5px,color:#574600
+    classDef output fill:#EAF7E8,stroke:#3C8D40,stroke-width:1.5px,color:#173B1A
+
+    subgraph V02["v0.2: VAE + Conditional Flow + GRL/V-REx"]
+        P02["PPG\n[B,4,2000]"]:::input --> E02["VAEPPGEncoder\nstem/enc1/enc2/shared\n4 -> 32 -> 64 -> 128 -> 128\nT: 2000 -> 1000 -> 500 -> 250 -> 125"]:::encoder
+        E02 --> Z02["posterior\nz_content: 64 x 125\nz_style: 64 x 125\nconcat: 128 x 125"]:::latent
+        Z02 --> C02["context decoder\nBaselineECGDecoder\nbase=24, no encoder skips"]:::decoder
+        C02 --> F02["4 x conditional affine coupling\ncondition=context ECG\nzero-noise at inference"]:::decoder
+        F02 --> O02["ECG\n[B,4,2000]"]:::output
+        Z02 --> S02["z_content only\nmean over time -> [B,64]"]:::latent
+        S02 --> G02["GRL\nlambda 0.1 -> 0.3"]:::aux
+        G02 --> D02["SubjectDiscriminator\n64 -> 128 -> 22 classes"]:::aux
+        O02 --> L02["objective\nMSE + 0.05 FlowNLL\n+ 0.001 KL + 0.1 SubjectCE\n+ 0.01 V-REx"]:::loss
+        D02 --> L02
+        Z02 --> K02["KL(q(z_content)||N)\n+ KL(q(z_style)||N)"]:::loss
+        K02 --> L02
+    end
+
+    subgraph V052["v0.52: Multi-band decoder + Frozen Reverse Cycle"]
+        P52["PPG\n[B,4,2000]"]:::input --> E52["BaselinePPGEncoder\n4 residual downsampling blocks\n4 -> 32 -> 64 -> 128 -> 128\nlatent [B,128,125]\nskips: [32,1000],[64,500],[128,250]"]:::encoder
+        E52 --> D52["shared time decoder features\nbase=32 + skip fusion"]:::decoder
+        D52 --> B52L["low head\nFFT mask 0-0.5 Hz"]:::fixed
+        D52 --> B52M["mid head\nFFT mask 0.5-10 Hz"]:::fixed
+        D52 --> B52H["high head\nFFT mask 10-40 Hz"]:::fixed
+        B52L --> X52["1 x 1 fusion\n3 x [B,4,2000] -> [B,4,2000]"]:::decoder
+        B52M --> X52
+        B52H --> X52
+        X52 --> O52["ECG_hat\n[B,4,2000]"]:::output
+        O52 --> R52E["reverse encoder\nECG -> latent"]:::aux
+        R52E --> R52D["reverse decoder\nlatent -> PPG_direct"]:::aux
+        O52 -. cycle .-> R52E2["same frozen reverse branch\nlatent -> PPG_cycle"]:::aux
+        R52E2 --> C52["cycle constraint\nL1(PPG_direct, PPG)\n+ 0.5 L1(PPG_cycle, PPG)"]:::loss
+        T52["ECG target"]:::input --> R52E
+        O52 --> C52
+        O52 --> L52["main objective\nL_signal = L1 + 0.05 derivative\n+ 0.05 STFT\nL_band = 0.25(0.5 low + 1 mid + 2 high)"]:::loss
+        C52 --> L52
+        L52 --> X52
+    end
+
+    V02 --- V052

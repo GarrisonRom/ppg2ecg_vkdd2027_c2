@@ -1,0 +1,96 @@
+# v0.54: direct Haar wavelet-coefficient decoder with exact IDWT synthesis.
+# The PPG encoder predicts A4/D4/D3/D2/D1 coefficient fields; the fixed Haar
+# inverse is the only path that turns those fields into the ECG waveform.
+
+experiment:
+  name: senssmarttech_v054_wavelet_coeff_frozen_cycle_20ep_seed42
+
+data:
+  dataset: senssmarttech
+  root: data/processed/SensSmartTech/subjectwise_per-lead
+  ppg_channel: null
+  batch_size: 16
+  num_workers: 4
+
+model:
+  latent_dim: 128
+
+  encoder:
+    name: baseline_encoder
+    base_channels: 32
+    dropout: 0.1
+
+  decoder:
+    name: wavelet_decoder
+    base_channels: 32
+    dropout: 0.0
+    levels: 4
+
+  band_loss:
+    enabled: false
+
+  cycle_consistency:
+    enabled: true
+    reverse_encoder:
+      name: baseline_encoder
+      base_channels: 32
+      dropout: 0.0
+    reverse_decoder:
+      name: baseline_decoder
+      base_channels: 32
+      dropout: 0.0
+    signal_loss: l1
+    direct_ecg2ppg_weight: 1.0
+    ppg_cycle_weight: 0.5
+    reverse_pretrain_epochs: 10
+    freeze_reverse: true
+    pretrain_ecg_weight: 1.0
+
+  diffusion: null
+
+  loss:
+    weights:
+      mse: 0.0
+      l1: 1.0
+      qrs_weighted: 0.0
+      derivative: 0.05
+      freq: 0.0
+      haar_wavelet: 0.20
+      haar_qrs: 0.15
+      peak_interval: 0.10
+      wavelet: 0.0
+      wavelet_qrs: 0.0
+      dtw: 0.0
+      perceptual: 0.0
+    wavelet:
+      haar_levels: 4
+      haar_qrs_levels: [2, 3, 4]
+      haar_approx_weight: 0.25
+      haar_detail_weights: [0.15, 1.0, 1.0, 0.5]
+      scale_floor: 0.05
+      peak_window_ms: 100.0
+      search_radius_ms: 80.0
+      peak_threshold: 0.25
+      softmax_temperature: 0.05
+      max_peaks: 16
+      lead_index: 1
+
+  adversarial:
+    enabled: false
+  irm:
+    enabled: false
+
+training:
+  epochs: 20
+  lr: 0.0001
+  weight_decay: 0.00001
+  min_lr: 0.000001
+  max_grad_norm: 1.0
+  diff_weight: 0.0
+  flow_weight: 0.0
+  vae_kl_weight: 0.0
+  selection_metric: ecg_total
+  save_every: 5
+
+seed: 42
+device: auto

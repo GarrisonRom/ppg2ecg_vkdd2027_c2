@@ -13,22 +13,42 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from .baseline import BaselineECGDecoder, BaselinePPGEncoder
+from .band_decoder import MultiBandECGDecoder
+from .wavelet_decoder import WaveletECGDecoder
 from .ecg_decoder import ECGDecoder
 from .latent_diffusion import LatentDiffusion
 from .ppg_encoder import PPGEncoder
+from .vae_flow import (
+    CardioAlignEncoder,
+    ConditionalFlowECGGenerator,
+    LatentRectifiedFlow,
+    VAEPPGEncoder,
+)
 
 ENCODER_REGISTRY: dict[str, type] = {
     "ppg_encoder": PPGEncoder,
     "baseline_encoder": BaselinePPGEncoder,
+    "vae_encoder": VAEPPGEncoder,
+    "cardio_align_encoder": CardioAlignEncoder,
+    "cardio_ppg_encoder": CardioAlignEncoder,
+    "cardio_ecg_encoder": CardioAlignEncoder,
 }
 
 DECODER_REGISTRY: dict[str, type] = {
     "ecg_decoder": ECGDecoder,
     "baseline_decoder": BaselineECGDecoder,
+    "multiband_decoder": MultiBandECGDecoder,
+    "gated_multiband_decoder": MultiBandECGDecoder,
+    "wavelet_decoder": WaveletECGDecoder,
+    "flow_generator": ConditionalFlowECGGenerator,
 }
 
 DIFFUSION_REGISTRY: dict[str, type] = {
     "latent_diffusion": LatentDiffusion,
+}
+
+LATENT_FLOW_REGISTRY: dict[str, type] = {
+    "latent_rectified_flow": LatentRectifiedFlow,
 }
 
 
@@ -70,8 +90,11 @@ def build_encoder(
     """构建 PPG 编码器。signal_length/latent_dim 由数据集与全局配置强制指定。"""
     cfg_name = cfg.get("name") if cfg else None
     forced = {"signal_length": signal_length, "latent_dim": latent_dim}
-    # 旧版 ppg_encoder 保持单通道接口；新 baseline 动态接收数据集通道数。
-    if cfg_name == "baseline_encoder":
+    # 旧版 ppg_encoder 保持单通道接口；时序 baseline/VAE 动态接收数据集通道数。
+    if cfg_name in {
+        "baseline_encoder", "vae_encoder", "cardio_align_encoder",
+        "cardio_ppg_encoder", "cardio_ecg_encoder",
+    }:
         forced["ppg_channels"] = ppg_channels
     return build_from_registry(
         ENCODER_REGISTRY, "encoder", cfg,
@@ -99,5 +122,16 @@ def build_diffusion(
     """构建潜空间扩散模块 (可选)。"""
     return build_from_registry(
         DIFFUSION_REGISTRY, "diffusion", cfg,
+        latent_dim=latent_dim,
+    )
+
+
+def build_latent_flow(
+    cfg: dict[str, Any] | None,
+    latent_dim: int,
+):
+    """构建隐空间 Rectified Flow (可选)。"""
+    return build_from_registry(
+        LATENT_FLOW_REGISTRY, "latent_flow", cfg,
         latent_dim=latent_dim,
     )

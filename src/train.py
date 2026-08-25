@@ -143,6 +143,11 @@ def main():
         batch_size=data_config.get("batch_size", 32),
         num_workers=data_config.get("num_workers", 4),
         ppg_channel=data_config.get("ppg_channel", None),
+        ecg_lead=data_config.get("ecg_lead", None),
+        subject_balanced=bool(data_config.get("subject_balanced", False)),
+        subjects_per_batch=int(data_config.get("subjects_per_batch", 4)),
+        samples_per_subject=int(data_config.get("samples_per_subject", 4)),
+        batches_per_epoch=data_config.get("batches_per_epoch"),
     )
 
     if "train" not in dataloaders:
@@ -168,6 +173,7 @@ def main():
         signal_length=train_dataset.signal_length,
         ecg_leads=train_dataset.ecg_leads,
         ppg_channels=train_dataset.num_ppg_channels,
+        sample_rate=train_dataset.fs,
     )
 
     num_epochs = config.get("training", {}).get("epochs", 100)

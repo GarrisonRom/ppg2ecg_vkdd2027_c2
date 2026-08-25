@@ -1,0 +1,35 @@
+# Controlled RDDM reimplementation on SensSmartTech.
+# Keeps ROI-guided forward noise, ROI/non-ROI denoisers, and 10-step sampling.
+
+experiment:
+  name: senssmarttech_rddm_repro_20ep_seed42
+
+method: rddm
+
+data:
+  dataset: senssmarttech
+  root: data/processed/SensSmartTech/subjectwise_per-lead
+  ppg_channel: null
+  ecg_lead: null
+  batch_size: 4
+  num_workers: 0
+
+rddm:
+  base_channels: 16
+  timesteps: 1000
+  beta_end: 0.2
+  roi_gamma: 32
+  roi_threshold: 1.5
+  lambda_roi: 100.0
+  lambda_global: 1.0
+  sampling_steps: 10
+
+training:
+  epochs: 20
+  lr: 0.0001
+  weight_decay: 0.00001
+  max_grad_norm: 1.0
+  save_every: 5
+
+seed: 42
+device: auto

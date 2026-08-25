@@ -1,0 +1,84 @@
+# v0.4: PPGFlowECG-inspired paired latent prototype.
+#
+# This is an explicit, minimal adaptation rather than a claim of exact paper
+# reproduction: a shared VAE/CardioAlign encoder produces paired PPG/ECG
+# posteriors, the ECG decoder is trained cross-modally, and a temporal
+# rectified flow transports PPG latent means toward ECG latent means.
+# Activity labels remain metadata-only and are never model inputs.
+
+experiment:
+  name: senssmarttech_v04_ppgflowecg_inspired_20ep_seed42
+
+data:
+  dataset: senssmarttech
+  root: data/processed/SensSmartTech/subjectwise_per-lead
+  ppg_channel: null
+  batch_size: 16
+  num_workers: 4
+
+model:
+  latent_dim: 128
+  share_cardio_encoder: true
+
+  encoder:
+    name: cardio_align_encoder
+    content_dim: 64
+    style_dim: 64
+    base_channels: 32
+    dropout: 0.1
+
+  # The decoder is deliberately kept waveform-simple.  The Flow lives in
+  # the aligned latent space, following the key PPGFlowECG design choice.
+  decoder:
+    name: baseline_decoder
+    base_channels: 32
+    dropout: 0.05
+
+  latent_flow:
+    name: latent_rectified_flow
+    hidden_channels: 128
+    num_layers: 4
+    dropout: 0.05
+    max_steps: 8
+
+  cardio_align:
+    integration_steps: 8
+    direct_recon_weight: 1.0
+    cross_recon_weight: 0.25
+    flow_recon_weight: 1.0
+    distribution_weight: 0.10
+    contrastive_weight: 0.05
+    latent_flow_weight: 1.0
+    projection_dim: 128
+    temperature: 0.10
+
+  adversarial:
+    enabled: false
+  irm:
+    enabled: false
+
+  loss:
+    # Controlled comparison: no v0.3 QRS/STFT additions in this first
+    # PPGFlowECG-inspired trial.
+    weights:
+      mse: 1.0
+      l1: 0.0
+      qrs_weighted: 0.0
+      derivative: 0.0
+      freq: 0.0
+      dtw: 0.0
+      perceptual: 0.0
+
+training:
+  epochs: 20
+  lr: 0.0001
+  weight_decay: 0.00001
+  min_lr: 0.000001
+  max_grad_norm: 1.0
+  diff_weight: 0.0
+  flow_weight: 0.0
+  vae_kl_weight: 0.0005
+  save_every: 5
+
+seed: 42
+device: auto

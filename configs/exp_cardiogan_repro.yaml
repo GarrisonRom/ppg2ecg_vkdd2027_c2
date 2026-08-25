@@ -1,0 +1,38 @@
+# Controlled CardioGAN reimplementation on SensSmartTech.
+# Keeps the Attention U-Net, dual time/frequency discriminators, and cycle loss.
+# The current data remain 4 PPG -> 4 ECG, 250 Hz, 2000 points, subject-wise 22/5/5.
+
+experiment:
+  name: senssmarttech_cardiogan_repro_20ep_seed42
+
+method: cardiogan
+
+data:
+  dataset: senssmarttech
+  root: data/processed/SensSmartTech/subjectwise_per-lead
+  ppg_channel: null
+  ecg_lead: null
+  batch_size: 8
+  num_workers: 0
+
+cardiogan:
+  base_channels: 16
+  disc_base_channels: 16
+  freq_disc_base_channels: 8
+  alpha_time: 3.0
+  beta_frequency: 1.0
+  cycle_weight: 30.0
+  # The paper uses tanh after min-max [-1, 1] preprocessing.  This project
+  # uses train-statistic z-score ECG, so no output clamp is used in this fair
+  # adaptation; otherwise QRS amplitudes would be clipped by construction.
+  output_activation: none
+
+training:
+  epochs: 20
+  lr: 0.0001
+  weight_decay: 0.00001
+  max_grad_norm: 1.0
+  save_every: 5
+
+seed: 42
+device: auto

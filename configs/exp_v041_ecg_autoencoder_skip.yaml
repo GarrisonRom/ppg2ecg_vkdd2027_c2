@@ -1,0 +1,37 @@
+# v0.41 diagnostic: ECG -> ECG autoencoder.
+#
+# This is not a PPG2ECG result.  It isolates the target-side reconstruction
+# path with the existing high-resolution skip architecture.  A/B activity is
+# metadata only and is never used as an input.
+
+experiment:
+  name: senssmarttech_v041_ecg_autoencoder_skip_20ep_seed42
+
+data:
+  dataset: senssmarttech
+  root: data/processed/SensSmartTech/subjectwise_per-lead
+  batch_size: 32
+  num_workers: 4
+
+model:
+  latent_dim: 128
+  encoder:
+    name: baseline_encoder
+    base_channels: 32
+    dropout: 0.0
+  decoder:
+    name: baseline_decoder
+    base_channels: 32
+    dropout: 0.0
+
+training:
+  epochs: 20
+  lr: 0.001
+  weight_decay: 0.00001
+  min_lr: 0.00001
+  max_grad_norm: 1.0
+  save_every: 5
+  loss: l1
+
+seed: 42
+device: auto

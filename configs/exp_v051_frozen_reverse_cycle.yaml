@@ -1,0 +1,76 @@
+# v0.51: two-stage bidirectional cycle experiment.
+# Stage 1: directly pretrain ECG -> PPG while keeping a supervised PPG -> ECG
+# reconstruction anchor. Stage 2: freeze ECG -> PPG and use it only as a
+# physiological cycle constraint for PPG -> ECG.
+
+experiment:
+  name: senssmarttech_v051_frozen_reverse_cycle_20ep_seed42
+
+data:
+  dataset: senssmarttech
+  root: data/processed/SensSmartTech/subjectwise_per-lead
+  ppg_channel: null
+  batch_size: 16
+  num_workers: 4
+
+model:
+  latent_dim: 128
+
+  encoder:
+    name: baseline_encoder
+    base_channels: 32
+    dropout: 0.1
+
+  decoder:
+    name: baseline_decoder
+    base_channels: 32
+    dropout: 0.0
+
+  cycle_consistency:
+    enabled: true
+    reverse_encoder:
+      name: baseline_encoder
+      base_channels: 32
+      dropout: 0.0
+    reverse_decoder:
+      name: baseline_decoder
+      base_channels: 32
+      dropout: 0.0
+    signal_loss: l1
+    direct_ecg2ppg_weight: 1.0
+    ppg_cycle_weight: 0.5
+    reverse_pretrain_epochs: 10
+    freeze_reverse: true
+    pretrain_ecg_weight: 1.0
+
+  diffusion: null
+
+  loss:
+    weights:
+      mse: 0.0
+      l1: 1.0
+      qrs_weighted: 0.0
+      derivative: 0.0
+      freq: 0.0
+      dtw: 0.0
+      perceptual: 0.0
+
+  adversarial:
+    enabled: false
+  irm:
+    enabled: false
+
+training:
+  epochs: 20
+  lr: 0.0001
+  weight_decay: 0.00001
+  min_lr: 0.000001
+  max_grad_norm: 1.0
+  diff_weight: 0.0
+  flow_weight: 0.0
+  vae_kl_weight: 0.0
+  selection_metric: ecg_total
+  save_every: 5
+
+seed: 42
+device: auto

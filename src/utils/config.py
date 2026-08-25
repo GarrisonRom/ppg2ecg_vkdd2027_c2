@@ -59,6 +59,8 @@ DEFAULT_CONFIG = {
         "root": "data/processed/SensSmartTech/subjectwise_per-lead",
         # baseline 使用全部 4 路 PPG; 单通道旧模型可显式填写通道名
         "ppg_channel": None,
+        # None = 全部 ECG 导联; "II" 可用于严格单导联配置
+        "ecg_lead": None,
         "batch_size": 32,
         "num_workers": 4,
     },

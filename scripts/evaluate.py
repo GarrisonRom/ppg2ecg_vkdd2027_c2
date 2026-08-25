@@ -34,7 +34,7 @@ import torch
 
 from src.data import create_dataset
 from src.evaluation.metrics import evaluate_all
-from src.models import build_decoder, build_encoder
+from src.models import build_decoder, build_encoder, build_latent_flow
 from src.utils.config import load_config
 
 
@@ -55,13 +55,21 @@ def load_run(run_dir: Path, checkpoint: str, split: str):
     config = load_config(run_dir / "config.yaml")
     data_cfg = config["data"]
 
-    # 评估加载全部 PPG 通道 (PTT 需要); 模型输入通道在预测时再选
-    dataset = create_dataset(data_cfg["dataset"], data_cfg["root"], split=split)
+    # Keep the configured channel protocol explicit.  ``None`` preserves the
+    # historical four-channel/four-lead evaluation; selecting both options
+    # makes a strict single-PPG -> single-ECG run possible without changing the
+    # cached files.
+    dataset = create_dataset(
+        data_cfg["dataset"],
+        data_cfg["root"],
+        split=split,
+        ppg_channel=data_cfg.get("ppg_channel"),
+        ecg_lead=data_cfg.get("ecg_lead"),
+    )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model_cfg = config["model"]
-    configured_ppg_channel = data_cfg.get("ppg_channel")
-    model_ppg_channels = 1 if configured_ppg_channel else dataset.num_ppg_channels
+    model_ppg_channels = dataset.num_ppg_channels
     encoder = build_encoder(
         model_cfg.get("encoder"),
         signal_length=dataset.signal_length,
@@ -75,17 +83,31 @@ def load_run(run_dir: Path, checkpoint: str, split: str):
         ecg_leads=dataset.ecg_leads,
     ).to(device)
 
+    latent_flow = None
+    if model_cfg.get("latent_flow") is not None:
+        latent_flow = build_latent_flow(
+            model_cfg["latent_flow"],
+            latent_dim=model_cfg.get("latent_dim", 128),
+        ).to(device)
+
     ckpt = torch.load(run_dir / checkpoint, map_location=device, weights_only=False)
     encoder.load_state_dict(ckpt["encoder"])
     decoder.load_state_dict(ckpt["decoder"])
+    if latent_flow is not None:
+        if "latent_flow" not in ckpt:
+            raise KeyError(f"Checkpoint {checkpoint} does not contain latent_flow weights")
+        latent_flow.load_state_dict(ckpt["latent_flow"])
     encoder.eval()
     decoder.eval()
-    return config, dataset, encoder, decoder, device
+    if latent_flow is not None:
+        latent_flow.eval()
+    return config, dataset, encoder, decoder, latent_flow, device
 
 
 @torch.no_grad()
 def predict(encoder, decoder, ppg: np.ndarray, ppg_channel_idx: int | None,
-            device, fs: float, batch_size: int = 64) -> tuple[np.ndarray, dict]:
+            device, fs: float, batch_size: int = 64,
+            latent_flow=None, flow_steps: int = 8) -> tuple[np.ndarray, dict]:
     """批量推理。ppg: [N, C_p, T] (全通道), 返回 (pred [N, C_e, T], 效率信息)。"""
     if ppg_channel_idx is None:
         xs = torch.from_numpy(ppg).float()
@@ -94,11 +116,19 @@ def predict(encoder, decoder, ppg: np.ndarray, ppg_channel_idx: int | None,
     preds = []
     n_params = sum(p.numel() for p in encoder.parameters()) + \
                sum(p.numel() for p in decoder.parameters())
+    if latent_flow is not None:
+        n_params += sum(p.numel() for p in latent_flow.parameters())
 
     t0 = time.perf_counter()
     for i in range(0, len(xs), batch_size):
         batch = xs[i: i + batch_size].to(device)
-        preds.append(decoder(encoder(batch)).cpu().numpy())
+        encoded = encoder(batch)
+        if latent_flow is not None:
+            latent = encoded["mu"] if isinstance(encoded, dict) else encoded
+            latent = latent_flow.integrate(latent, steps=flow_steps)
+            preds.append(decoder(latent).cpu().numpy())
+        else:
+            preds.append(decoder(encoded).cpu().numpy())
     elapsed = time.perf_counter() - t0
     pred = np.concatenate(preds, axis=0)
 
@@ -176,10 +206,10 @@ def flatten_summary(summary: dict, prefix: str = "") -> dict[str, float]:
 
 def main():
     args = parse_args()
-    config, dataset, encoder, decoder, device = load_run(
+    config, dataset, encoder, decoder, latent_flow, device = load_run(
         args.run, args.checkpoint, args.split)
 
-    # 全通道 PPG (PTT 需要), 模型输入通道按配置选择
+    # The dataset already applies the configured channel selection.
     ppg_full = dataset._x
     ecg_true = dataset._y
     fs = dataset.fs
@@ -192,8 +222,14 @@ def main():
           f"N={len(dataset)} subjects={len(np.unique(subject_ids))} fs={fs}")
 
     # 模型预测 + 效率
-    pred, efficiency = predict(encoder, decoder, ppg_full, ppg_idx, device,
-                               fs=fs, batch_size=args.batch_size)
+    flow_steps = int((config.get("model", {}).get("cardio_align", {}) or {}).get(
+        "integration_steps", 8,
+    ))
+    pred, efficiency = predict(
+        encoder, decoder, ppg_full, ppg_idx, device,
+        fs=fs, batch_size=args.batch_size,
+        latent_flow=latent_flow, flow_steps=flow_steps,
+    )
     efficiency["fs"] = fs  # 记录
 
     results = {

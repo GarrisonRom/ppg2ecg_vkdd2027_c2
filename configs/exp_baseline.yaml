@@ -13,6 +13,8 @@ data:
   root: data/processed/SensSmartTech/subjectwise_per-lead
   # null = 使用全部 4 路 PPG；A/B 只在 metadata/评估中保留
   ppg_channel: null
+  # null = 输出全部 4 导联；单到单对照可设为 "II"，但需重新训练
+  ecg_lead: null
   batch_size: 16
   num_workers: 4
 

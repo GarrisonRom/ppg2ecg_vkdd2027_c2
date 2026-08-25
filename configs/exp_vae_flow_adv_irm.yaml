@@ -1,0 +1,71 @@
+# SensSmartTech VAE + conditional Flow + adversarial subject disentanglement
+#
+# A/B activity labels remain metadata only.  The adversarial head receives
+# only z_content; z_style is retained by the ECG generator but never sent to
+# the subject classifier.  IRM is implemented as a stable V-REx risk variance
+# over subject environments.
+
+experiment:
+  name: senssmarttech_vae_flow_adv_irm
+
+data:
+  dataset: senssmarttech
+  root: data/processed/SensSmartTech/subjectwise_per-lead
+  ppg_channel: null
+  batch_size: 16
+  num_workers: 4
+
+model:
+  latent_dim: 128
+
+  encoder:
+    name: vae_encoder
+    content_dim: 64
+    style_dim: 64
+    base_channels: 32
+    dropout: 0.1
+
+  decoder:
+    name: flow_generator
+    base_channels: 24
+    num_flow_layers: 4
+    flow_hidden_channels: 32
+    dropout: 0.0
+
+  diffusion: null
+
+  adversarial:
+    enabled: true
+    hidden_dim: 128
+    dropout: 0.1
+    loss_weight: 0.1
+    grl_max_lambda: 0.3
+    grl_warmup_epochs: 3
+
+  irm:
+    enabled: true
+    mode: vrex
+    environment: subject
+    loss_weight: 0.01
+    min_env_samples: 2
+
+  loss:
+    weights:
+      mse: 1.0
+      dtw: 0.0
+      freq: 0.0
+      perceptual: 0.0
+
+training:
+  epochs: 20
+  lr: 0.0001
+  weight_decay: 0.00001
+  min_lr: 0.000001
+  max_grad_norm: 1.0
+  diff_weight: 0.0
+  flow_weight: 0.05
+  vae_kl_weight: 0.001
+  save_every: 5
+
+seed: 42
+device: auto

@@ -8,6 +8,7 @@
 from .dataset import (
     BasePPGECGDataset,
     SensSmartTechDataset,
+    SubjectBalancedBatchSampler,
     create_dataset,
     create_dataloaders,
     register_dataset,
@@ -16,6 +17,7 @@ from .dataset import (
 __all__ = [
     "BasePPGECGDataset",
     "SensSmartTechDataset",
+    "SubjectBalancedBatchSampler",
     "create_dataset",
     "create_dataloaders",
     "register_dataset",

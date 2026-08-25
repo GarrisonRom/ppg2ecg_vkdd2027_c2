@@ -1,8 +1,10 @@
 """多层评估指标体系 (PPG→ECG 重建)。
 
 层级 (按讨论定稿的矩阵, 已修正):
-  L1 波形重建:  MSE / RMSE / MAE / PCC (逐导联) / DTW近似 / SNR
-  L2 生理一致:  HR误差 / R峰F1+时序误差 / RMSSD误差 / QRS宽度误差 /
+  L1 波形重建:  MSE / RMSE / MAE / PCC (逐导联) / DTW近似 / SNR /
+                NRMSE / RMS·energy·peak amplitude ratios
+  L2 生理一致:  HR误差 / R峰F1+precision+recall+时序误差 /
+                RMSSD绝对和相对误差 / QRS宽度和幅度误差 /
                 PTT误差(分部位) / 生成有效率 / HR传递斜率
   L3 泛化对比:  OOD gap 等由 evaluate_all 的多组结果相减得到 (见 ood_gap)
   L4 分布质量:  1-NNA / Coverage (无需特征编码器; FID/IS 暂缓)
@@ -131,6 +133,36 @@ def ptt_from_peaks(r_peaks: np.ndarray, ppg_sig: np.ndarray, fs: float,
     return float(np.mean(ptts)) if len(ptts) >= 2 else float("nan")
 
 
+def _matched_peak_amplitudes(pred_sig: np.ndarray, true_sig: np.ndarray,
+                             pred_peaks: np.ndarray, true_peaks: np.ndarray,
+                             fs: float, tol: int) -> tuple[float, float, int]:
+    """Return median matched predicted/true QRS amplitudes and match count."""
+    if len(pred_peaks) == 0 or len(true_peaks) == 0:
+        return float("nan"), float("nan"), 0
+    pred_x = _centered(np.asarray(pred_sig, dtype=np.float64), int(0.25 * fs))
+    true_x = _centered(np.asarray(true_sig, dtype=np.float64), int(0.25 * fs))
+    half = max(1, int(40.0 / 1000.0 * fs))
+    used = np.zeros(len(true_peaks), dtype=bool)
+    pred_amps: list[float] = []
+    true_amps: list[float] = []
+    for p in pred_peaks:
+        distances = np.abs(true_peaks.astype(np.float64) - float(p))
+        distances[used] = np.inf
+        j = int(np.argmin(distances))
+        if distances[j] > tol:
+            continue
+        used[j] = True
+        tp = int(true_peaks[j])
+        p_lo, p_hi = max(0, int(p) - half), min(len(pred_x), int(p) + half + 1)
+        t_lo, t_hi = max(0, tp - half), min(len(true_x), tp + half + 1)
+        if p_hi > p_lo and t_hi > t_lo:
+            pred_amps.append(float(np.max(np.abs(pred_x[p_lo:p_hi]))))
+            true_amps.append(float(np.max(np.abs(true_x[t_lo:t_hi]))))
+    if not pred_amps:
+        return float("nan"), float("nan"), 0
+    return float(np.median(pred_amps)), float(np.median(true_amps)), len(pred_amps)
+
+
 # ======================================================================
 # L1 波形重建 (逐导联 + 宏观)
 # ======================================================================
@@ -147,6 +179,11 @@ def waveform_metrics_1v1(pred: np.ndarray, true: np.ndarray) -> dict[str, float]
     denom = np.sqrt(float(pc @ pc) * float(tc @ tc))
     pcc = float(pc @ tc / denom) if denom > EPS else 0.0
     pcc = float(np.clip(pcc, -1.0, 1.0))
+    target_rms = float(np.sqrt(np.mean(true ** 2)))
+    pred_rms = float(np.sqrt(np.mean(pred ** 2)))
+    target_peak = float(np.max(np.abs(true))) if true.size else float("nan")
+    pred_peak = float(np.max(np.abs(pred))) if pred.size else float("nan")
+    target_std = float(np.std(true))
     # DTW 近似: 多尺度 L1
     dtw = mae
     n_scales = 1
@@ -156,8 +193,20 @@ def waveform_metrics_1v1(pred: np.ndarray, true: np.ndarray) -> dict[str, float]
             dtw += float(np.mean(np.abs(
                 pred[: n * k].reshape(n, k).mean(1) - true[: n * k].reshape(n, k).mean(1))))
             n_scales += 1
-    return {"mse": mse, "rmse": rmse, "mae": mae, "pcc": pcc,
-            "snr_db": snr, "dtw": dtw / n_scales}
+    return {
+        "mse": mse,
+        "rmse": rmse,
+        "mae": mae,
+        "pcc": pcc,
+        "snr_db": snr,
+        "dtw": dtw / n_scales,
+        # Amplitude diagnostics expose conservative/over-sharp generation
+        # that global error and PCC can hide.
+        "nrmse": rmse / (target_std + EPS),
+        "rms_ratio": pred_rms / (target_rms + EPS),
+        "energy_ratio": (pred_rms ** 2) / (target_rms ** 2 + EPS),
+        "peak_abs_ratio": pred_peak / (target_peak + EPS),
+    }
 
 
 def evaluate_waveform(pred: np.ndarray, target: np.ndarray,
@@ -179,7 +228,8 @@ def evaluate_waveform(pred: np.ndarray, target: np.ndarray,
             for k, v in m.items():
                 row[f"{k}/{name}"] = v
         # 宏观 = 各导联平均
-        for key in ("mse", "rmse", "mae", "pcc", "snr_db", "dtw"):
+        for key in ("mse", "rmse", "mae", "pcc", "snr_db", "dtw",
+                    "nrmse", "rms_ratio", "energy_ratio", "peak_abs_ratio"):
             row[f"{key}/macro"] = float(np.mean(
                 [row[f"{key}/{name}"] for name in lead_names]))
         rows.append(row)
@@ -233,12 +283,44 @@ def window_physiology(pred_win: np.ndarray, true_win: np.ndarray, fs: float,
     out["hr_err_bpm"] = abs(hr_pred - hr_true) if np.isfinite(hr_pred) else float("nan")
 
     # --- HRV (超短时) ---
-    out["rmssd_err_ms"] = abs(rmssd_from_peaks(pred_peaks, fs)
-                              - rmssd_from_peaks(true_peaks, fs))
+    rmssd_pred = rmssd_from_peaks(pred_peaks, fs)
+    rmssd_true = rmssd_from_peaks(true_peaks, fs)
+    out["rmssd_pred_ms"] = rmssd_pred
+    out["rmssd_true_ms"] = rmssd_true
+    out["rmssd_err_ms"] = (abs(rmssd_pred - rmssd_true)
+                            if np.isfinite(rmssd_pred) and np.isfinite(rmssd_true)
+                            else float("nan"))
+    out["rmssd_rel_err_pct"] = (
+        abs(rmssd_pred - rmssd_true) / (abs(rmssd_true) + EPS) * 100.0
+        if np.isfinite(rmssd_pred) and np.isfinite(rmssd_true)
+        and abs(rmssd_true) > EPS else float("nan")
+    )
 
     # --- QRS 宽度 ---
-    out["qrs_width_err_ms"] = abs(qrs_width_ms(pred_sig, pred_peaks, fs)
-                                  - qrs_width_ms(true_sig, true_peaks, fs))
+    qrs_pred = qrs_width_ms(pred_sig, pred_peaks, fs)
+    qrs_true = qrs_width_ms(true_sig, true_peaks, fs)
+    out["qrs_width_pred_ms"] = qrs_pred
+    out["qrs_width_true_ms"] = qrs_true
+    out["qrs_width_err_ms"] = (abs(qrs_pred - qrs_true)
+                                if np.isfinite(qrs_pred) and np.isfinite(qrs_true)
+                                else float("nan"))
+
+    # --- QRS amplitude calibration (matched beats only) ---
+    amp_pred, amp_true, n_amp = _matched_peak_amplitudes(
+        pred_sig, true_sig, pred_peaks, true_peaks, fs, tol,
+    )
+    out["qrs_amp_pred"] = amp_pred
+    out["qrs_amp_true"] = amp_true
+    out["qrs_amp_ratio"] = (
+        amp_pred / (amp_true + EPS)
+        if np.isfinite(amp_pred) and np.isfinite(amp_true) and amp_true > EPS
+        else float("nan")
+    )
+    out["qrs_amp_abs_err"] = (
+        abs(amp_pred - amp_true)
+        if np.isfinite(amp_pred) and np.isfinite(amp_true) else float("nan")
+    )
+    out["qrs_amp_n_matches"] = float(n_amp)
 
     # --- PTT (分部位; 需要 PPG 输入) ---
     if ppg_win is not None and ppg_names is not None:
@@ -415,6 +497,8 @@ def evaluate_all(pred: np.ndarray, target: np.ndarray, fs: float,
     result = {
         "n_windows": int(n),
         "n_subjects": int(len(np.unique(subject_ids))),
+        "n_valid_windows": int(phys["valid"].sum()),
+        "n_invalid_windows": int((1.0 - phys["valid"]).sum()),
         "validity_rate": valid_rate,
         "waveform": {
             "macro": {k: v for k, v in wave_summary.items()

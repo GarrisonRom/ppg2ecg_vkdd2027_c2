@@ -11,10 +11,26 @@
 
 from .ppg_encoder import PPGEncoder
 from .baseline import BaselineECGDecoder, BaselinePPGEncoder
+from .band_decoder import MultiBandECGDecoder
+from .wavelet_decoder import HaarWavelet1D, WaveletECGDecoder
 from .ecg_decoder import ECGDecoder
 from .latent_diffusion import LatentDiffusion
+from .patchgan import (
+    ConditionalPatchGAN1D,
+    patchgan_hinge_discriminator_loss,
+    patchgan_hinge_generator_loss,
+)
 from .classifier import DiseaseClassifier
 from .losses import ReconstructionLoss
+from .wavelet import Symlet4SWT
+from .vae_flow import (
+    CardioAlignEncoder,
+    ConditionalFlowECGGenerator,
+    LatentRectifiedFlow,
+    SubjectDiscriminator,
+    VAEPPGEncoder,
+    grad_reverse,
+)
 from .registry import (
     DECODER_REGISTRY,
     DIFFUSION_REGISTRY,
@@ -22,20 +38,35 @@ from .registry import (
     build_decoder,
     build_diffusion,
     build_encoder,
+    build_latent_flow,
 )
 
 __all__ = [
     "PPGEncoder",
     "BaselinePPGEncoder",
     "BaselineECGDecoder",
+    "MultiBandECGDecoder",
+    "HaarWavelet1D",
+    "WaveletECGDecoder",
     "ECGDecoder",
     "LatentDiffusion",
+    "ConditionalPatchGAN1D",
+    "patchgan_hinge_discriminator_loss",
+    "patchgan_hinge_generator_loss",
     "DiseaseClassifier",
     "ReconstructionLoss",
+    "Symlet4SWT",
+    "VAEPPGEncoder",
+    "CardioAlignEncoder",
+    "LatentRectifiedFlow",
+    "ConditionalFlowECGGenerator",
+    "SubjectDiscriminator",
+    "grad_reverse",
     "ENCODER_REGISTRY",
     "DECODER_REGISTRY",
     "DIFFUSION_REGISTRY",
     "build_encoder",
     "build_decoder",
     "build_diffusion",
+    "build_latent_flow",
 ]

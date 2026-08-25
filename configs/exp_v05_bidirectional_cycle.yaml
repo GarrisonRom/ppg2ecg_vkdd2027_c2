@@ -1,0 +1,82 @@
+# v0.5: bidirectional cycle-consistent PPG<->ECG generation.
+#
+# Main path:  PPG -> ECG
+# Reverse path: ECG -> PPG (directly supervised)
+# Cycle:     PPG -> ECG_hat -> PPG_cycle
+#
+# The reverse network is a learned forward physiological constraint, not a
+# literal inversion of the convolutional weights.  A/B activity remains
+# metadata-only and is never provided to either path.
+
+experiment:
+  name: senssmarttech_v05_bidirectional_cycle_20ep_seed42
+
+data:
+  dataset: senssmarttech
+  root: data/processed/SensSmartTech/subjectwise_per-lead
+  ppg_channel: null
+  batch_size: 16
+  num_workers: 4
+
+model:
+  latent_dim: 128
+
+  encoder:
+    name: baseline_encoder
+    base_channels: 32
+    dropout: 0.1
+
+  decoder:
+    name: baseline_decoder
+    base_channels: 32
+    dropout: 0.0
+
+  # A separate ECG->PPG pair is trained on paired observations.  The first
+  # experiment keeps its weights trainable jointly; the direct term prevents
+  # the cycle from becoming a two-network collusion objective.
+  cycle_consistency:
+    enabled: true
+    reverse_encoder:
+      name: baseline_encoder
+      base_channels: 32
+      dropout: 0.0
+    reverse_decoder:
+      name: baseline_decoder
+      base_channels: 32
+      dropout: 0.0
+    signal_loss: l1
+    direct_ecg2ppg_weight: 1.0
+    ppg_cycle_weight: 1.0
+
+  diffusion: null
+
+  # Controlled first v0.5 trial: retain the robust global L1 anchor while
+  # isolating the bidirectional constraint from VAE/Flow/GRL/IRM additions.
+  loss:
+    weights:
+      mse: 0.0
+      l1: 1.0
+      qrs_weighted: 0.0
+      derivative: 0.0
+      freq: 0.0
+      dtw: 0.0
+      perceptual: 0.0
+
+  adversarial:
+    enabled: false
+  irm:
+    enabled: false
+
+training:
+  epochs: 20
+  lr: 0.0001
+  weight_decay: 0.00001
+  min_lr: 0.000001
+  max_grad_norm: 1.0
+  diff_weight: 0.0
+  flow_weight: 0.0
+  vae_kl_weight: 0.0
+  save_every: 5
+
+seed: 42
+device: auto

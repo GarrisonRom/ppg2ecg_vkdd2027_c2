@@ -18,6 +18,8 @@ data:
   root: data/processed/SensSmartTech/subjectwise_per-lead
   # PPG 通道选择: null = 使用全部 4 路 PPG (baseline)
   ppg_channel: null
+  # ECG 导联选择: null = 输出全部 4 导联; 例如 "II" 仅用于单导联配置
+  ecg_lead: null
   batch_size: 32
   num_workers: 4
 

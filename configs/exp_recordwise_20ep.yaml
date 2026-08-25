@@ -1,0 +1,43 @@
+# Record-wise leakage upper bound for protocol auditing.
+# This split intentionally allows the same subject to appear in train/val/test.
+# It must never be used as the main cross-subject result.
+
+experiment:
+  name: senssmarttech_recordwise_baseline_20ep_seed42
+
+data:
+  dataset: senssmarttech
+  root: data/processed/SensSmartTech/recordwise_per-lead
+  ppg_channel: null
+  batch_size: 16
+  num_workers: 4
+
+model:
+  latent_dim: 128
+  encoder:
+    name: baseline_encoder
+    base_channels: 32
+    dropout: 0.1
+  decoder:
+    name: baseline_decoder
+    base_channels: 32
+    dropout: 0.0
+  diffusion: null
+  loss:
+    weights:
+      mse: 1.0
+      dtw: 0.0
+      freq: 0.0
+      perceptual: 0.0
+
+training:
+  epochs: 20
+  lr: 0.0001
+  weight_decay: 0.00001
+  min_lr: 0.000001
+  max_grad_norm: 1.0
+  diff_weight: 0.0
+  save_every: 5
+
+seed: 42
+device: auto
